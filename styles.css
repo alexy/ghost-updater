@@ -548,3 +548,8 @@
 	border-top: none;
 	padding-top: 0;
 }
+
+/* Edit-properties modal: hide the publish-date row unless scheduling */
+.ghost-updater-hidden {
+	display: none;
+}

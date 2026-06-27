@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, normalizePath, debounce, Modal, ButtonComponent } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, normalizePath, debounce, Modal, ButtonComponent, parseYaml } from 'obsidian';
 import { GhostWriterSettings, DEFAULT_SETTINGS, GhostPost } from './src/types';
 import { GhostAPIClient } from './src/ghost/api-client';
 import { generateNewPostTemplate, addGhostPropertiesToContent } from './src/templates';
@@ -6,6 +6,7 @@ import { SyncEngine } from './src/sync/sync-engine';
 import { CalendarView, CALENDAR_VIEW_TYPE } from './src/views/calendar-view';
 import { ImportFromGhostModal } from './src/modals/import-from-ghost-modal';
 import { LinkToGhostModal } from './src/modals/link-to-ghost-modal';
+import { EditGhostPropertiesModal, GhostPropsForm } from './src/modals/edit-properties-modal';
 import { updateFrontmatterWithGhostUrl, updateFrontmatterWithGhostId, upsertGhostMetadata, splitFrontmatter, joinFrontmatter, upsertFrontmatterKeys, parseGhostMetadata } from './src/frontmatter-parser';
 import { htmlToMarkdown } from './src/converters/html-to-markdown';
 import { paywallDecorationPlugin, paywallDeduplicateExtension } from './src/editor/paywall-decoration';
@@ -172,6 +173,16 @@ export default class GhostWriterManagerPlugin extends Plugin {
 			editorCallback: (_editor, view) => {
 				if (!view.file) { new Notice('No active file'); return; }
 				void this.seedActiveNoteFromGhost(view.file);
+			}
+		});
+
+		// Edit Ghost properties of the current note via a modal with dropdowns
+		this.addCommand({
+			id: 'edit-ghost-properties',
+			name: 'Edit ghost properties (modal)',
+			editorCallback: (_editor, view) => {
+				if (!view.file) { new Notice('No active file'); return; }
+				void this.openEditPropertiesModal(view.file);
 			}
 		});
 
@@ -595,6 +606,67 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Seed failed: ${(error as Error).message}`);
 		}
+	}
+
+	/**
+	 * Open the "Edit Ghost properties" modal for the active note. Reads current
+	 * values from the file on disk, then writes the chosen values back (preserving
+	 * non-Ghost frontmatter), optionally syncing.
+	 */
+	private async openEditPropertiesModal(file: TFile): Promise<void> {
+		const prefix = this.settings.yamlPrefix;
+		const content = await this.app.vault.read(file);
+
+		// Read current frontmatter from disk (cache can lag)
+		let fmObj: Record<string, unknown> = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+		const split = splitFrontmatter(content);
+		if (split) {
+			try {
+				const d = parseYaml(split.raw) as unknown;
+				if (d && typeof d === 'object') fmObj = d as Record<string, unknown>;
+			} catch { /* ignore, use cache */ }
+		}
+		const md = parseGhostMetadata(fmObj, prefix);
+
+		const status: GhostPropsForm['status'] = !md?.published
+			? 'draft'
+			: (md.published_at ? 'schedule' : 'publish');
+
+		const initial: GhostPropsForm = {
+			status,
+			visibility: md?.post_access ?? 'public',
+			featured: md?.featured ?? false,
+			coverFromFirstImage: md?.cover_from_first_image ?? false,
+			publishedAt: md?.published_at ?? '',
+			excerpt: md?.excerpt ?? '',
+			tags: (md?.tags ?? []).join(', '),
+			slug: md?.slug ?? '',
+			featureImage: md?.feature_image ?? ''
+		};
+
+		new EditGhostPropertiesModal(this.app, file.basename, initial, async (form, doSync) => {
+			let updated = await this.app.vault.read(file);
+			const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
+			const tagsYaml = tags.length > 0 ? `[${tags.map(t => `"${t}"`).join(', ')}]` : '[]';
+			const escq = (s: string): string => s.replace(/\n/g, ' ').replace(/"/g, '\\"');
+			const ghostFields: Record<string, string> = {
+				post_access: form.visibility,
+				published: form.status === 'draft' ? 'false' : 'true',
+				published_at: form.status === 'schedule' && form.publishedAt ? `"${form.publishedAt}"` : '""',
+				featured: form.featured ? 'true' : 'false',
+				cover_from_first_image: form.coverFromFirstImage ? 'true' : 'false',
+				excerpt: `"${escq(form.excerpt)}"`,
+				feature_image: `"${form.featureImage}"`,
+				slug: form.slug,
+				tags: tagsYaml
+			};
+			updated = upsertGhostMetadata(updated, ghostFields, prefix);
+			await this.app.vault.modify(file, updated);
+			new Notice('Ghost properties saved');
+			if (doSync) {
+				await this.syncEngine.syncFileToGhost(file);
+			}
+		}).open();
 	}
 
 	/**

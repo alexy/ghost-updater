@@ -14,6 +14,7 @@ ${prefix}featured: false
 ${prefix}tags: []
 ${prefix}excerpt: ""
 ${prefix}feature_image: ""
+${prefix}cover_from_first_image: false
 ${prefix}no_sync: false
 ---
 

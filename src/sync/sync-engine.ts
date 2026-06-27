@@ -158,15 +158,17 @@ export class SyncEngine {
 			const baseMarkdown = normalizePaywallMarker(rawMarkdown);
 
 			// Upload local images to Ghost and rewrite their references to the
-			// uploaded URLs. When the note has no explicit feature image, the first
-			// image is promoted to the cover and removed from the body (cover swallow).
+			// uploaded URLs. The cover-swallow (first image becomes the feature image
+			// and is removed from the body) only happens when the note opts in via
+			// `cover_from_first_image` AND has no explicit feature image set.
 			const hasExplicitFeature = !!(metadata.feature_image && metadata.feature_image.trim());
+			const swallowCover = metadata.cover_from_first_image && !hasExplicitFeature;
 			const { markdown: markdownContent, coverImageUrl, cacheUpdated } = await processPostImages(
 				this.app,
 				this.ghostClient,
 				baseMarkdown,
 				file,
-				!hasExplicitFeature,
+				swallowCover,
 				this.settings.imageCache
 			);
 			if (cacheUpdated) {

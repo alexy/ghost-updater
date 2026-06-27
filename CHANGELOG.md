@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-27
+
+### Added
+- **Edit Ghost properties modal** (command: "Edit ghost properties (modal)"). Dropdowns for Status (Draft / Publish now / Schedule) and Visibility (Public / Members only / Paid) so invalid values are impossible; free text only for tags, slug, excerpt, and feature image. The publish-date field appears only when scheduling. **Save** writes the frontmatter (preserving non-Ghost keys); **Save & sync** also pushes to Ghost. Non-sticky — closes on save.
+- **`cover_from_first_image` flag.** The cover-swallow (first body image becomes the feature image and is removed from the body) is now **opt-in per note** via this flag, instead of happening automatically whenever no feature image was set. Toggle it in the modal or set `<prefix>cover_from_first_image: true`.
+
+### Changed
+- New posts include `cover_from_first_image: false` in the template.
+
 ## [0.3.4] - 2026-06-27
 
 ### Fixed

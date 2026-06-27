@@ -12,6 +12,7 @@ export interface GhostMetadata {
 	excerpt: string;
 	feature_image: string;
 	no_sync: boolean;
+	cover_from_first_image: boolean; // when true, the first body image becomes the cover and is removed
 	ghost_id?: string; // Ghost post ID if already synced
 	slug?: string; // Custom slug
 	ghost_url?: string; // Ghost editor URL for this post
@@ -149,6 +150,7 @@ export function parseGhostMetadata(
 	const featured = parseBool(get('featured'));
 	const published = parseBool(get('published'));
 	const no_sync = parseBool(get('no_sync'));
+	const cover_from_first_image = parseBool(get('cover_from_first_image'));
 
 	console.debug('[Ghost Parse] Featured value:', get('featured'), '=> parsed:', featured);
 	console.debug('[Ghost Parse] Published value:', get('published'), '=> parsed:', published);
@@ -180,6 +182,7 @@ export function parseGhostMetadata(
 		excerpt,
 		feature_image,
 		no_sync,
+		cover_from_first_image,
 		ghost_id: get('id') ? String(get('id')) : undefined,
 		slug: get('slug') ? String(get('slug')) : undefined,
 		ghost_url: get('url') ? String(get('url')) : undefined,
