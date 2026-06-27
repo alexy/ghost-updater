@@ -1,8 +1,9 @@
 import { App, TFile, Notice } from 'obsidian';
 import { GhostAPIClient } from '../ghost/api-client';
 import { GhostWriterSettings, GhostPost } from '../types';
-import { parseGhostMetadata, extractContent, updateFrontmatterWithGhostId, updateFrontmatterWithGhostUrl } from '../frontmatter-parser';
+import { parseGhostMetadata, extractContent, updateFrontmatterWithGhostId, updateFrontmatterWithGhostUrl, upsertGhostMetadata, splitFrontmatter, joinFrontmatter } from '../frontmatter-parser';
 import { extractTitle, generateSlug, normalizePaywallMarker } from '../converters/markdown-to-html';
+import { htmlToMarkdown } from '../converters/html-to-markdown';
 import { markdownToLexical } from '../converters/markdown-to-lexical';
 import { processPostImages } from '../ghost/image-uploader';
 
@@ -21,6 +22,66 @@ export class SyncEngine {
 		this.settings = settings;
 		this.ghostClient = ghostClient;
 		this.saveSettings = saveSettings;
+	}
+
+	/**
+	 * Seed a note from an existing Ghost post matched by slug (Ghost → Obsidian).
+	 *
+	 * Looks up the post with the given slug, converts its content to markdown, and
+	 * writes the post's metadata + body into the note (preserving any non-Ghost
+	 * frontmatter keys). This records `ghost_id`, so subsequent syncs push in place.
+	 * Returns false if no post with that slug exists.
+	 */
+	async seedNoteFromGhostBySlug(file: TFile, slug: string): Promise<boolean> {
+		const post = await this.ghostClient.getPostBySlug(slug);
+		if (!post) {
+			new Notice(`No Ghost post found with slug "${slug}"`);
+			return false;
+		}
+
+		const prefix = this.settings.yamlPrefix;
+		const baseUrl = this.settings.ghostUrl.replace(/\/$/, '');
+		const ghostEditorUrl = `${baseUrl}/ghost/#/editor/post/${post.id}`;
+		const isPublic = post.status === 'published' || post.status === 'scheduled';
+
+		const tags = (post.tags ?? []).map(t => t.name);
+		const tagsYaml = tags.length > 0 ? `[${tags.map(t => `"${t}"`).join(', ')}]` : '[]';
+
+		const ghostFields: Record<string, string> = {
+			post_access: post.visibility ?? 'public',
+			published: isPublic ? 'true' : 'false',
+			published_at: `"${post.published_at ?? ''}"`,
+			featured: post.featured ? 'true' : 'false',
+			tags: tagsYaml,
+			excerpt: `"${post.excerpt ?? ''}"`,
+			feature_image: `"${post.feature_image ?? ''}"`,
+			no_sync: 'false',
+			id: post.id,
+			slug: post.slug,
+			url: ghostEditorUrl
+		};
+		if (isPublic && post.url) {
+			ghostFields.public_url = post.url;
+		}
+
+		let content = await this.app.vault.read(file);
+		content = upsertGhostMetadata(content, ghostFields, prefix);
+
+		// Replace the body with the Ghost post content (HTML → Markdown).
+		// Note: Ghost stores Lexical; this conversion is a close approximation.
+		const title = post.title || 'Untitled Post';
+		const bodyMarkdown = htmlToMarkdown(post.html ?? '');
+		const parsed = splitFrontmatter(content);
+		content = parsed
+			? joinFrontmatter(parsed.raw, `\n# ${title}\n\n${bodyMarkdown}`)
+			: `# ${title}\n\n${bodyMarkdown}`;
+
+		await this.app.vault.modify(file, content);
+		if (this.settings.showSyncNotifications) {
+			new Notice(`Seeded from Ghost: "${title}"`);
+		}
+		console.debug(`[Ghost Sync] Seeded note from Ghost post ${post.id} (slug '${slug}')`);
+		return true;
 	}
 
 	/**
@@ -63,6 +124,17 @@ export class SyncEngine {
 
 			// Extract markdown content (without frontmatter)
 			const rawMarkdown = extractContent(content);
+
+			// Auto-seed: if g_slug is set, there is no ghost_id yet, and the note has
+			// no body, pull the existing Ghost post INTO the note (Ghost → Obsidian)
+			// instead of pushing an empty note over the live post.
+			if (metadata.slug && !metadata.ghost_id && rawMarkdown.trim() === '') {
+				console.debug('[Ghost Sync] Empty note with explicit slug — seeding from Ghost instead of publishing');
+				const seeded = await this.seedNoteFromGhostBySlug(file, metadata.slug);
+				this.onStatusChange?.(seeded ? 'success' : 'idle', seeded ? 'Seeded from Ghost' : undefined);
+				return seeded;
+			}
+
 			const baseMarkdown = normalizePaywallMarker(rawMarkdown);
 
 			// Upload local images to Ghost and rewrite their references to the

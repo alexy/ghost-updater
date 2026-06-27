@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-27
+
+### Added
+- **Seed a note from an existing Ghost post by slug.** When a note has an explicit `g_slug` but no `ghost_id`, you can pull the live post into the note (Ghost → Obsidian) to bootstrap it: metadata and body are written into the note and `ghost_id` is recorded, so later edits push in place.
+  - New command: **"Seed note from existing Ghost post (by slug)"**.
+  - Automatic on sync when the note has an explicit slug, no `ghost_id`, and an **empty body** — seeds instead of pushing an empty note over the live post (closes a data-loss path). Notes with any body content still publish.
+
+### Notes
+- Seeding converts Ghost's HTML to markdown; since Ghost stores Lexical, the reconstructed body is a close approximation, intended for bootstrapping.
+
 ## [0.3.0] - 2026-06-27
 
 Renamed to **Ghost Updater** — a fork of [Ghost Writer Manager](https://github.com/diegoeis/ghost-writer-manager-plugin) by Diego Eis (MIT), focused on publishing and reliably updating Ghost posts from Obsidian on desktop and iOS.

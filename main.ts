@@ -6,7 +6,7 @@ import { SyncEngine } from './src/sync/sync-engine';
 import { CalendarView, CALENDAR_VIEW_TYPE } from './src/views/calendar-view';
 import { ImportFromGhostModal } from './src/modals/import-from-ghost-modal';
 import { LinkToGhostModal } from './src/modals/link-to-ghost-modal';
-import { updateFrontmatterWithGhostUrl, updateFrontmatterWithGhostId, upsertGhostMetadata, splitFrontmatter, joinFrontmatter, upsertFrontmatterKeys } from './src/frontmatter-parser';
+import { updateFrontmatterWithGhostUrl, updateFrontmatterWithGhostId, upsertGhostMetadata, splitFrontmatter, joinFrontmatter, upsertFrontmatterKeys, parseGhostMetadata } from './src/frontmatter-parser';
 import { htmlToMarkdown } from './src/converters/html-to-markdown';
 import { paywallDecorationPlugin, paywallDeduplicateExtension } from './src/editor/paywall-decoration';
 
@@ -163,6 +163,16 @@ export default class GhostWriterManagerPlugin extends Plugin {
 			id: 'link-note-to-ghost',
 			name: 'Link note to ghost post',
 			callback: () => { this.openLinkToGhostModal(); }
+		});
+
+		// Seed the current note from an existing Ghost post matched by g_slug
+		this.addCommand({
+			id: 'seed-note-from-ghost-by-slug',
+			name: 'Seed note from existing Ghost post (by slug)',
+			editorCallback: (_editor, view) => {
+				if (!view.file) { new Notice('No active file'); return; }
+				void this.seedActiveNoteFromGhost(view.file);
+			}
 		});
 
 		// Add command to insert the paywall marker at the cursor
@@ -553,6 +563,37 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		} catch (error) {
 			console.error('[Ghost Import] Error importing post:', error);
 			new Notice(`Failed to import post: ${(error as Error).message}`);
+		}
+	}
+
+	/**
+	 * Seed the active note from an existing Ghost post matched by its `g_slug`.
+	 * Only runs when the note has an explicit slug and no `ghost_id` yet.
+	 */
+	private async seedActiveNoteFromGhost(file: TFile): Promise<void> {
+		const apiKey = this.loadApiKey();
+		if (!this.settings.ghostUrl || !apiKey) {
+			new Notice('Please configure ghost URL and admin API key first');
+			return;
+		}
+
+		const prefix = this.settings.yamlPrefix;
+		const cache = this.app.metadataCache.getFileCache(file);
+		const metadata = cache?.frontmatter ? parseGhostMetadata(cache.frontmatter, prefix) : null;
+		if (!metadata?.slug) {
+			new Notice(`Set ${prefix}slug on this note first to seed from Ghost`);
+			return;
+		}
+		if (metadata.ghost_id) {
+			new Notice('This note already has a ghost_id — nothing to seed.');
+			return;
+		}
+
+		try {
+			new Notice(`Looking up Ghost post with slug "${metadata.slug}"...`);
+			await this.syncEngine.seedNoteFromGhostBySlug(file, metadata.slug);
+		} catch (error) {
+			new Notice(`Seed failed: ${(error as Error).message}`);
 		}
 	}
 
