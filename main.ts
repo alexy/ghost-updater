@@ -208,6 +208,13 @@ export default class GhostWriterManagerPlugin extends Plugin {
 			}
 		});
 
+		// Clear the cached image-upload map so images re-upload on the next sync
+		this.addCommand({
+			id: 'clear-ghost-image-cache',
+			name: 'Clear ghost image cache',
+			callback: () => { void this.clearImageCache(); }
+		});
+
 		// Add command to insert the paywall marker at the cursor
 		this.addCommand({
 			id: 'insert-paywall-marker',
@@ -628,6 +635,17 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Seed failed: ${(error as Error).message}`);
 		}
+	}
+
+	/**
+	 * Clear the cached image-upload map (content hash -> Ghost URL) without
+	 * touching any other settings. Use this instead of deleting data.json.
+	 */
+	private async clearImageCache(): Promise<void> {
+		const n = Object.keys(this.settings.imageCache ?? {}).length;
+		this.settings.imageCache = {};
+		await this.saveSettings();
+		new Notice(`Cleared ghost image cache (${n} ${n === 1 ? 'entry' : 'entries'})`);
 	}
 
 	/**

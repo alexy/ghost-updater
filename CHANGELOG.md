@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-06-27
+
+### Added
+- **"Clear ghost image cache" command** — empties the cached image-upload map without touching any other settings, so you never need to delete `data.json` (which would also wipe your Ghost URL, sync folder, and prefix).
+
 ## [0.4.4] - 2026-06-27
 
 ### Fixed
