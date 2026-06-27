@@ -156,11 +156,15 @@ ghost-updater/
 - `npm run build` — production build (type-check + bundle)
 - `npm run lint` — ESLint
 
-## Credits & License
+## Credits
 
-Ghost Updater is a fork of **[Ghost Writer Manager](https://github.com/diegoeis/ghost-writer-manager-plugin)** by **Diego Eis**. Original work © 2026 Diego Eis. Fork maintained by Alexy Khrabrov.
+Ghost Updater builds directly on **[Ghost Writer Manager](https://github.com/diegoeis/ghost-writer-manager-plugin)** by **[Diego Eis](https://github.com/diegoeis)**. Sincere thanks to Diego for the original plugin — the sync engine, editorial calendar, Markdown→Lexical conversion, scheduling, paywall marker, and the whole foundation come from his work. Ghost Updater would not exist without it.
 
-Licensed under the **MIT License** — see [LICENSE](LICENSE). The original copyright and license notice are retained.
+This fork is maintained by **[Alexy Khrabrov](https://github.com/alexy)**, adding iOS/mobile support, image publishing with the cover-image trick, the content-hash image cache, in-place updates (no duplicates), and the public-URL frontmatter field.
+
+## License
+
+Licensed under the **MIT License** — see [LICENSE](LICENSE). Original work © 2026 Diego Eis; fork modifications © 2026 Alexy Khrabrov. The original copyright and license notice are retained.
 
 ## Support
 
