@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-28
+
+Release **Pessoa** — publishing UX and reliability milestone (see RELEASES.md). Rolls up the 0.4.x–0.5.x properties modal, prefix migration, separate image-cache file, and the validation/indicator fixes into a named release. No code change since 0.5.3.
+
 ## [0.5.3] - 2026-06-28
 
 ### Fixed
