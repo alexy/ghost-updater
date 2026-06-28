@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-06-28
+
+### Fixed
+- **Over-long slug validation error.** A note with no `# heading` derived its title from the first body line (a whole paragraph), producing a slug over Ghost's 191-character limit. The title now comes from the first H1 heading or the note's filename (never the first paragraph), the slug is capped at 191 chars, and the title at 255.
+
 ## [0.5.1] - 2026-06-28
 
 ### Fixed

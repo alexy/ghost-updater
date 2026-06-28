@@ -2,7 +2,7 @@ import { App, TFile, Notice, parseYaml } from 'obsidian';
 import { GhostAPIClient } from '../ghost/api-client';
 import { GhostWriterSettings, GhostPost } from '../types';
 import { parseGhostMetadata, extractContent, updateFrontmatterWithGhostId, updateFrontmatterWithGhostUrl, upsertGhostMetadata, splitFrontmatter, joinFrontmatter } from '../frontmatter-parser';
-import { extractTitle, generateSlug, normalizePaywallMarker } from '../converters/markdown-to-html';
+import { generateSlug, normalizePaywallMarker } from '../converters/markdown-to-html';
 import { htmlToMarkdown } from '../converters/html-to-markdown';
 import { markdownToLexical } from '../converters/markdown-to-lexical';
 import { processPostImages } from '../ghost/image-uploader';
@@ -191,16 +191,17 @@ export class SyncEngine {
 			console.debug('[Ghost Sync] Lexical length:', lexical.length);
 			console.debug('[Ghost Sync] Lexical preview:', lexical.substring(0, 200));
 
-			// Extract title — fall back to the note's filename when there is no
-			// heading / first line (e.g. an empty or body-less note).
-			let title = extractTitle(markdownContent);
-			if (!title || title === 'Untitled') {
-				title = file.basename;
-			}
+			// Title: use the first H1 heading if present, otherwise the note's
+			// filename. Do NOT fall back to the first body line — for a note with no
+			// heading that would be a whole paragraph, producing an over-long title
+			// and slug (Ghost rejects slugs over 191 chars).
+			const h1 = markdownContent.match(/^#\s+(.+)$/m);
+			let title = (h1 ? h1[1].trim() : '') || file.basename;
+			title = title.slice(0, 255);
 			console.debug('[Ghost Sync] Extracted title:', title);
 
-			// Generate or use existing slug
-			const slug = metadata.slug || generateSlug(title);
+			// Generate or use existing slug — cap at Ghost's 191-character limit.
+			const slug = (metadata.slug || generateSlug(title)).slice(0, 191);
 			console.debug('[Ghost Sync] Slug:', slug);
 
 			// Determine status based on g_published and g_published_at
