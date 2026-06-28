@@ -14,14 +14,22 @@ export class SyncEngine {
 	private app: App;
 	private settings: GhostWriterSettings;
 	private ghostClient: GhostAPIClient;
-	private saveSettings?: () => Promise<void>;
+	private imageCache: Record<string, string>;
+	private saveImageCache?: () => Promise<void>;
 	public onStatusChange?: (status: 'idle' | 'syncing' | 'success' | 'error', message?: string) => void;
 
-	constructor(app: App, settings: GhostWriterSettings, ghostClient: GhostAPIClient, saveSettings?: () => Promise<void>) {
+	constructor(
+		app: App,
+		settings: GhostWriterSettings,
+		ghostClient: GhostAPIClient,
+		imageCache: Record<string, string>,
+		saveImageCache?: () => Promise<void>
+	) {
 		this.app = app;
 		this.settings = settings;
 		this.ghostClient = ghostClient;
-		this.saveSettings = saveSettings;
+		this.imageCache = imageCache;
+		this.saveImageCache = saveImageCache;
 	}
 
 	/**
@@ -169,10 +177,10 @@ export class SyncEngine {
 				baseMarkdown,
 				file,
 				swallowCover,
-				this.settings.imageCache
+				this.imageCache
 			);
 			if (cacheUpdated) {
-				await this.saveSettings?.();
+				await this.saveImageCache?.();
 			}
 			console.debug('[Ghost Sync] Markdown content length:', markdownContent.length);
 			console.debug('[Ghost Sync] Cover image (swallowed):', coverImageUrl);

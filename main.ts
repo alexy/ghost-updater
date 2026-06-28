@@ -20,12 +20,16 @@ export default class GhostWriterManagerPlugin extends Plugin {
 	settings: GhostWriterSettings;
 	ghostClient: GhostAPIClient;
 	syncEngine: SyncEngine;
+	/** Uploaded image content-hash → Ghost URL. Stored in its own file, separate from settings. */
+	imageCache: Record<string, string> = {};
 	private syncDebounced?: (file: TFile) => void;
 	private statusBarItem: HTMLElement;
 	private periodicSyncInterval: number;
 
 	async onload() {
 		await this.loadSettings();
+		await this.loadImageCache();
+		await this.migrateLegacyImageCache();
 
 		// Get API key from secure keychain
 		const apiKey = this.loadApiKey();
@@ -38,7 +42,7 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		);
 
 		// Initialize sync engine
-		this.syncEngine = new SyncEngine(this.app, this.settings, this.ghostClient, () => this.saveSettings());
+		this.syncEngine = new SyncEngine(this.app, this.settings, this.ghostClient, this.imageCache, () => this.saveImageCache());
 
 		// Connect sync engine to status bar
 		this.syncEngine.onStatusChange = (status, message) => {
@@ -413,6 +417,47 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		void this.setupPeriodicSync();
 	}
 
+	/** Path of the image-cache file, kept in the plugin dir, separate from data.json. */
+	private imageCachePath(): string {
+		return normalizePath(`${this.manifest.dir ?? '.'}/image-cache.json`);
+	}
+
+	async loadImageCache(): Promise<void> {
+		const path = this.imageCachePath();
+		try {
+			if (await this.app.vault.adapter.exists(path)) {
+				const parsed = JSON.parse(await this.app.vault.adapter.read(path)) as unknown;
+				if (parsed && typeof parsed === 'object') {
+					this.imageCache = parsed as Record<string, string>;
+				}
+			}
+		} catch (e) {
+			console.error('[Ghost] Failed to load image cache:', e);
+		}
+	}
+
+	async saveImageCache(): Promise<void> {
+		try {
+			await this.app.vault.adapter.write(this.imageCachePath(), JSON.stringify(this.imageCache));
+		} catch (e) {
+			console.error('[Ghost] Failed to save image cache:', e);
+		}
+	}
+
+	/** Move an image cache that used to live inside data.json into its own file. */
+	private async migrateLegacyImageCache(): Promise<void> {
+		const legacy = (this.settings as unknown as { imageCache?: Record<string, string> }).imageCache;
+		if (legacy && typeof legacy === 'object' && Object.keys(legacy).length > 0) {
+			this.imageCache = { ...legacy, ...this.imageCache };
+			await this.saveImageCache();
+		}
+		// Drop the legacy key from settings regardless, so it leaves data.json
+		if ((this.settings as unknown as { imageCache?: unknown }).imageCache !== undefined) {
+			delete (this.settings as unknown as { imageCache?: unknown }).imageCache;
+			await this.saveData(this.settings);
+		}
+	}
+
 	/**
 	 * Load Ghost Admin API Key from Obsidian Secrets
 	 */
@@ -642,9 +687,9 @@ export default class GhostWriterManagerPlugin extends Plugin {
 	 * touching any other settings. Use this instead of deleting data.json.
 	 */
 	private async clearImageCache(): Promise<void> {
-		const n = Object.keys(this.settings.imageCache ?? {}).length;
-		this.settings.imageCache = {};
-		await this.saveSettings();
+		const n = Object.keys(this.imageCache).length;
+		this.imageCache = {};
+		await this.saveImageCache();
 		new Notice(`Cleared ghost image cache (${n} ${n === 1 ? 'entry' : 'entries'})`);
 	}
 

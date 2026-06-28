@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-06-27
+
+### Changed
+- **The image cache now lives in its own file** (`image-cache.json` in the plugin folder), separate from `data.json`. Existing caches are migrated automatically on load. This means resetting or deleting `data.json` no longer touches the image cache, and clearing the cache never touches your settings.
+
 ## [0.4.5] - 2026-06-27
 
 ### Added
