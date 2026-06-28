@@ -114,23 +114,24 @@ export class SyncEngine {
 				return false;
 			}
 
-			// Parse Ghost metadata from the file ON DISK as the source of truth.
-			// Obsidian's metadata cache lags right after a frontmatter edit (e.g.
-			// toggling `published` or changing `post_access` in the Properties UI),
-			// so reading from the cache can sync stale values — or miss an existing
-			// `ghost_id` and create a duplicate. Fall back to the cache if needed.
-			let frontmatterObj: Record<string, unknown> = (cache.frontmatter ?? {}) as Record<string, unknown>;
+			// Combine the on-disk frontmatter with the metadata cache. The cache
+			// reflects edits made in the Properties UI immediately (which can happen
+			// before the file is flushed to disk on mobile), so it wins for the fields
+			// it has; the on-disk frontmatter fills in anything the cache lacks (e.g.
+			// right after a plugin reload, which also recovers `ghost_id`). This makes
+			// frontmatter-only changes take effect on sync without a body edit.
+			let diskFm: Record<string, unknown> = {};
 			const fmParsed = splitFrontmatter(content);
 			if (fmParsed) {
 				try {
-					const diskFm = parseYaml(fmParsed.raw) as unknown;
-					if (diskFm && typeof diskFm === 'object') {
-						frontmatterObj = diskFm as Record<string, unknown>;
-					}
+					const d = parseYaml(fmParsed.raw) as unknown;
+					if (d && typeof d === 'object') diskFm = d as Record<string, unknown>;
 				} catch (e) {
-					console.debug('[Ghost Sync] Disk frontmatter parse failed; using cache:', e);
+					console.debug('[Ghost Sync] Disk frontmatter parse failed:', e);
 				}
 			}
+			const cacheFm = (cache.frontmatter ?? {}) as Record<string, unknown>;
+			const frontmatterObj: Record<string, unknown> = { ...diskFm, ...cacheFm };
 
 			const metadata = parseGhostMetadata(frontmatterObj, this.settings.yamlPrefix);
 			if (!metadata) {

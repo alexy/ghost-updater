@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-06-27
+
+### Fixed
+- **Property-only edits now sync without a body edit.** Sync merges the metadata cache (which reflects Properties-UI edits immediately) with the on-disk frontmatter, so changing `post_access`, `published`, etc. takes effect on the next sync even before the file is flushed to disk.
+
 ## [0.4.7] - 2026-06-27
 
 ### Changed
