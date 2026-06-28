@@ -265,8 +265,11 @@ export class SyncEngine {
 				postData.published_at = publishedAt;
 			}
 
-			// Add optional fields — send null to explicitly clear values in Ghost
-			postData.excerpt = metadata.excerpt || null;
+			// Add optional fields — send null to explicitly clear values in Ghost.
+			// NOTE: the writable excerpt field in the Ghost Admin API is
+			// `custom_excerpt` (max 300 chars); `excerpt` is read-only and sending a
+			// non-empty value to it triggers a validation error.
+			postData.custom_excerpt = (metadata.excerpt || '').slice(0, 300) || null;
 			postData.feature_image = metadata.feature_image || coverImageUrl || null;
 			if (metadata.tags.length > 0) {
 				postData.tags = metadata.tags.map(name => ({ name }));

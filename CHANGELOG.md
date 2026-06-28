@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-28
+
+### Fixed
+- **Setting an excerpt no longer causes a Ghost validation error.** The plugin now sends `custom_excerpt` (the writable Admin API field, capped at 300 chars) instead of the read-only `excerpt` field. Sending a non-empty `excerpt` was rejected by Ghost.
+
 ## [0.5.0] - 2026-06-27
 
 ### Added
