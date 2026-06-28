@@ -802,24 +802,83 @@ export default class GhostWriterManagerPlugin extends Plugin {
 	}
 
 	/** Sync a note to each of its target blogs (one-to-many). */
-	/** Sync a note to a specific set of blogs (one-to-many). */
+	/** Read a blog→string map (g_ids / g_public_urls) from a note's frontmatter. */
+	private readBlogMap(fmObj: Record<string, unknown>, key: string): Record<string, string> {
+		const v = fmObj[key];
+		const out: Record<string, string> = {};
+		if (v && typeof v === 'object' && !Array.isArray(v)) {
+			for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+				if (typeof val === 'string') out[k] = val;
+			}
+		}
+		return out;
+	}
+
+	/** Serialize a blog→string map as an inline YAML flow mapping. */
+	private serializeBlogMap(map: Record<string, string>): string {
+		const entries = Object.entries(map);
+		if (entries.length === 0) return '{}';
+		return '{' + entries.map(([k, v]) => `"${k}": "${v}"`).join(', ') + '}';
+	}
+
+	/**
+	 * Sync a note to a specific set of blogs (one-to-many). Each blog is matched
+	 * by its own stored ghost_id (kept in the note's `g_ids` map) if we have one,
+	 * else by slug. After syncing, the per-blog id and public URL are recorded.
+	 */
 	async syncFileToBlogs(file: TFile, blogs: GhostBlog[]): Promise<boolean> {
 		if (blogs.length === 0) {
 			new Notice('No ghost blog configured — add one in settings.');
 			return false;
 		}
+		const prefix = this.settings.yamlPrefix;
 		const writeBack = blogs.length === 1;
+
+		// Read existing per-blog maps + the legacy single id from disk.
+		const content0 = await this.app.vault.read(file);
+		let fmObj: Record<string, unknown> = (this.app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+		const split0 = splitFrontmatter(content0);
+		if (split0) {
+			try {
+				const d = parseYaml(split0.raw) as unknown;
+				if (d && typeof d === 'object') fmObj = d as Record<string, unknown>;
+			} catch { /* ignore */ }
+		}
+		const idsMap = this.readBlogMap(fmObj, `${prefix}ids`);
+		const urlsMap = this.readBlogMap(fmObj, `${prefix}public_urls`);
+		const legacyId = typeof fmObj[`${prefix}id`] === 'string' ? String(fmObj[`${prefix}id`]) : '';
+
 		let ok = true;
+		let mapsChanged = false;
 		for (const blog of blogs) {
-			this.syncEngine.setActiveBlog(this.getClientForBlog(blog), blog.url, blog.folder, writeBack);
+			const knownId = idsMap[blog.name]
+				|| (blog.id === this.settings.defaultBlogId && legacyId ? legacyId : undefined);
+			this.syncEngine.setActiveBlog(this.getClientForBlog(blog), blog.url, blog.folder, writeBack, knownId);
 			try {
 				ok = (await this.syncEngine.syncFileToGhost(file)) && ok;
 			} catch (e) {
 				new Notice(`Sync to ${blog.name} failed: ${(e as Error).message}`);
 				ok = false;
 			}
+			const post = this.syncEngine.lastSyncedPost;
+			if (post) {
+				if (idsMap[blog.name] !== post.id) { idsMap[blog.name] = post.id; mapsChanged = true; }
+				const u = post.url || '';
+				if (u && urlsMap[blog.name] !== u) { urlsMap[blog.name] = u; mapsChanged = true; }
+			}
 		}
 		this.restoreDefaultBlogContext();
+
+		// For multi-blog notes, persist the per-blog id / public-url maps. (Single-blog
+		// notes already get g_id/g_url/g_public_url written by the sync engine.)
+		if (!writeBack && mapsChanged) {
+			let content = await this.app.vault.read(file);
+			content = upsertFrontmatterKeys(content, {
+				[`${prefix}ids`]: this.serializeBlogMap(idsMap),
+				[`${prefix}public_urls`]: this.serializeBlogMap(urlsMap)
+			});
+			await this.app.vault.modify(file, content);
+		}
 		return ok;
 	}
 

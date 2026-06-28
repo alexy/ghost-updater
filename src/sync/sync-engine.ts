@@ -23,6 +23,9 @@ export class SyncEngine {
 	private activeBaseUrl: string;           // active blog's site URL
 	private activeFolder: string;            // active blog's vault folder
 	private writeBack = true;                // write ghost_id/url back? (off for multi-blog)
+	private activeKnownId?: string;          // known post id on the active blog (multi-blog)
+	/** The post produced by the last syncFileToGhost call (for per-blog id/URL tracking). */
+	lastSyncedPost: GhostPost | null = null;
 
 	constructor(
 		app: App,
@@ -46,11 +49,12 @@ export class SyncEngine {
 	 * single-blog note (robust id tracking), disabled for multi-blog notes (each
 	 * blog is matched by slug instead, so per-blog ids don't collide in one note).
 	 */
-	setActiveBlog(client: GhostAPIClient, baseUrl: string, folder: string, writeBack: boolean): void {
+	setActiveBlog(client: GhostAPIClient, baseUrl: string, folder: string, writeBack: boolean, knownId?: string): void {
 		this.ghostClient = client;
 		this.activeBaseUrl = baseUrl;
 		this.activeFolder = folder;
 		this.writeBack = writeBack;
+		this.activeKnownId = knownId;
 	}
 
 	/**
@@ -117,6 +121,7 @@ export class SyncEngine {
 	 * Sync a single file to Ghost
 	 */
 	async syncFileToGhost(file: TFile): Promise<boolean> {
+		this.lastSyncedPost = null;
 		try {
 			// Read file content
 			const content = await this.app.vault.read(file);
@@ -178,7 +183,7 @@ export class SyncEngine {
 			// Auto-seed: if g_slug is set, there is no ghost_id yet, and the note has
 			// no body, pull the existing Ghost post INTO the note (Ghost → Obsidian)
 			// instead of pushing an empty note over the live post.
-			if (explicitSlug && !resolvedGhostId && rawMarkdown.trim() === '') {
+			if (this.writeBack && explicitSlug && !resolvedGhostId && rawMarkdown.trim() === '') {
 				console.debug('[Ghost Sync] Empty note with explicit slug — seeding from Ghost instead of publishing');
 				const seeded = await this.seedNoteFromGhostBySlug(file, explicitSlug);
 				this.onStatusChange?.(seeded ? 'success' : 'idle', seeded ? 'Seeded from Ghost' : undefined);
@@ -317,12 +322,16 @@ export class SyncEngine {
 			// (g_slug). Auto-derived (title-based) slugs are never used for adoption,
 			// so a new note whose title happens to collide with an existing post can
 			// never silently overwrite it.
-			let targetId = resolvedGhostId;
-			if (!targetId && explicitSlug) {
-				const existing = await this.ghostClient.getPostBySlug(explicitSlug);
+			// Rely on a known ghost_id if we have one, else the slug. For a multi-blog
+			// note the per-blog id is supplied (activeKnownId); for a single-blog note
+			// we use the note's own ghost_id. The slug fallback finds an existing post
+			// on the active blog when there is no id yet.
+			let targetId = this.activeKnownId || (this.writeBack ? resolvedGhostId : undefined);
+			if (!targetId && slug) {
+				const existing = await this.ghostClient.getPostBySlug(slug);
 				if (existing) {
 					targetId = existing.id;
-					console.debug(`[Ghost Sync] Existing post with explicit slug '${explicitSlug}' found (${targetId}); updating instead of creating`);
+					console.debug(`[Ghost Sync] Existing post with slug '${slug}' found (${targetId}); updating instead of creating`);
 				}
 			}
 
@@ -383,6 +392,9 @@ export class SyncEngine {
 					console.debug('[Ghost Sync] Frontmatter updated with Ghost ID, editor URL, public URL');
 				}
 			}
+
+			// Expose the synced post so the plugin can record per-blog ids/URLs
+			this.lastSyncedPost = ghostPost;
 
 			// Update last sync time
 			this.settings.lastSync = Date.now();

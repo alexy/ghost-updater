@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-06-28
+
+### Fixed
+- **Multi-blog publishing.** Publishing a note to two blogs failed (an internal recursion) and could push one blog's `ghost_id` to the other. Each blog is now matched by its own stored id (kept in the note's `g_ids` map) if we have one, else by slug; the per-blog id and public URL are recorded after each sync. Single-blog notes are unchanged.
+
 ## [0.8.0] - 2026-06-28
 
 ### Changed
