@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-06-28
+
+### Fixed
+- **Multiple blogs shared one keychain secret (the real 401 cause).** Every "Add blog" defaulted its key secret name to `ghost-api-key`, so two blogs read the *same* admin key — the second site rejected it with `UNKNOWN_ADMIN_API_KEY`. New blogs now get a unique secret name (`omnighost-key-<id>`), and the settings tab warns when existing blogs collide.
+
+### Added
+- **Inline per-blog "Admin API key" field.** Paste each blog's admin key right in its settings block and click Save key — it's stored under that blog's own keychain secret (auto-assigned a unique name if it was empty or shared). No more visiting the separate Keychain tab.
+
 ## [0.8.3] - 2026-06-28
 
 ### Fixed

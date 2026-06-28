@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, normalizePath, debounce, Modal, ButtonComponent, parseYaml } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, Notice, TFile, normalizePath, debounce, Modal, ButtonComponent, parseYaml, setIcon } from 'obsidian';
 import { GhostWriterSettings, DEFAULT_SETTINGS, GhostPost, GhostBlog } from './src/types';
 import { GhostAPIClient } from './src/ghost/api-client';
 import { generateNewPostTemplate, addGhostPropertiesToContent } from './src/templates';
@@ -778,6 +778,26 @@ export default class GhostWriterManagerPlugin extends Plugin {
 		return client;
 	}
 
+	/**
+	 * Ensure a blog has its OWN keychain secret name. If it's empty or shared with
+	 * another blog, assign a unique one derived from the blog id. Without this, two
+	 * blogs reading the same secret get the same admin key → 401 on the second site.
+	 */
+	ensureUniqueSecretName(blog: GhostBlog): void {
+		const shared = !blog.apiKeySecretName
+			|| this.settings.blogs.some(b => b.id !== blog.id && b.apiKeySecretName === blog.apiKeySecretName);
+		if (shared) blog.apiKeySecretName = `omnighost-key-${blog.id}`;
+	}
+
+	/** Blogs that share a keychain secret name (a key collision → wrong-key 401s). */
+	collidingSecretBlogs(): GhostBlog[] {
+		const counts = new Map<string, number>();
+		for (const b of this.settings.blogs) {
+			if (b.apiKeySecretName) counts.set(b.apiKeySecretName, (counts.get(b.apiKeySecretName) ?? 0) + 1);
+		}
+		return this.settings.blogs.filter(b => b.apiKeySecretName && (counts.get(b.apiKeySecretName) ?? 0) > 1);
+	}
+
 	/** The default (last-selected) blog, or the first, or null. */
 	defaultBlog(): GhostBlog | null {
 		return this.settings.blogs.find(b => b.id === this.settings.defaultBlogId)
@@ -1529,6 +1549,13 @@ class GhostWriterSettingTab extends PluginSettingTab {
 			text: 'Each blog has its own address, key, and folder. A note publishes to the blog(s) named in its g_blog property; the last blog you pick becomes the default for new notes.'
 		});
 
+		const colliding = plugin.collidingSecretBlogs();
+		if (colliding.length >= 2) {
+			const warn = containerEl.createEl('p', { cls: 'setting-item-description omnighost-warning' });
+			setIcon(warn.createSpan({ cls: 'omnighost-status-icon' }), 'alert-triangle');
+			warn.createSpan({ text: ` These blogs share one keychain secret (${colliding.map(b => b.name || 'untitled').join(', ')}), so they use the same admin key — the wrong one will fail with a 401. Set each blog's own key below.` });
+		}
+
 		plugin.settings.blogs.forEach((blog) => {
 			const isDefault = blog.id === plugin.settings.defaultBlogId;
 			new Setting(containerEl)
@@ -1554,14 +1581,31 @@ class GhostWriterSettingTab extends PluginSettingTab {
 				.addText(t => t.setValue(blog.name).onChange(async v => { blog.name = v.trim(); await plugin.saveSettings(); }));
 			new Setting(containerEl).setName('Site address')
 				.addText(t => t.setPlaceholder('https://yourblog.com').setValue(blog.url).onChange(async v => { blog.url = v.trim(); await plugin.saveSettings(); }));
-			new Setting(containerEl).setName('Key secret name')
-				.setDesc('Name of the keychain secret holding the admin key')
-				// eslint-disable-next-line obsidianmd/ui/sentence-case
-				.addText(t => t.setPlaceholder('secret name').setValue(blog.apiKeySecretName).onChange(async v => { blog.apiKeySecretName = v.trim(); await plugin.saveSettings(); }))
-				.addExtraButton(b => b.setIcon('key').setTooltip('Open keychain settings').onClick(() => {
-					const a = this.app as unknown as { setting: { open: () => void; openTabById: (id: string) => void } };
-					a.setting.open(); a.setting.openTabById('keychain');
+			const hasKey = !!(blog.apiKeySecretName && plugin.loadApiKeyForSecret(blog.apiKeySecretName).trim());
+			let pendingKey = '';
+			new Setting(containerEl).setName('Admin API key')
+				.setDesc(hasKey ? 'A key is stored for this blog. Enter a new one to replace it.' : "Paste this blog's admin key (id:secret) and save.")
+				.addText(t => {
+					t.inputEl.type = 'password';
+					t.setPlaceholder(hasKey ? 'stored — enter to replace' : 'id:secret');
+					t.onChange(v => { pendingKey = v.trim(); });
+				})
+				.addButton(b => b.setButtonText('Save key').onClick(async () => {
+					if (!pendingKey) { new Notice('Enter a key first'); return; }
+					plugin.ensureUniqueSecretName(blog);
+					try {
+						this.app.secretStorage.setSecret(blog.apiKeySecretName, pendingKey);
+						await plugin.saveSettings();
+						new Notice(`Saved key for ${blog.name || 'blog'}`);
+						this.display();
+					} catch (e) {
+						new Notice(`Could not save key: ${(e as Error).message}`);
+					}
 				}));
+			new Setting(containerEl).setName('Key secret name')
+				.setDesc('Keychain secret holding this key (managed automatically; one per blog)')
+				// eslint-disable-next-line obsidianmd/ui/sentence-case
+				.addText(t => t.setPlaceholder('secret name').setValue(blog.apiKeySecretName).onChange(async v => { blog.apiKeySecretName = v.trim(); await plugin.saveSettings(); }));
 			new Setting(containerEl).setName('Folder')
 				.setDesc("Vault folder for this blog's posts")
 				.addText(t => t.setPlaceholder('Ghost posts').setValue(blog.folder).onChange(async v => { blog.folder = v.trim(); await plugin.saveSettings(); }));
@@ -1573,7 +1617,8 @@ class GhostWriterSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(containerEl).addButton(b => b.setButtonText('Add blog').setCta().onClick(async () => {
-			const blog: GhostBlog = { id: plugin.genBlogId(), name: 'New blog', url: '', apiKeySecretName: 'ghost-api-key', folder: 'Ghost Posts' };
+			const id = plugin.genBlogId();
+			const blog: GhostBlog = { id, name: 'New blog', url: '', apiKeySecretName: `omnighost-key-${id}`, folder: 'Ghost Posts' };
 			plugin.settings.blogs.push(blog);
 			if (!plugin.settings.defaultBlogId) plugin.settings.defaultBlogId = blog.id;
 			await plugin.saveSettings();

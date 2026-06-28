@@ -577,6 +577,12 @@
 .omnighost-status-icon {
 	display: inline-flex;
 }
+.omnighost-warning {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-warning, var(--text-error));
+}
 .omnighost-public-url {
 	display: flex;
 	align-items: center;
