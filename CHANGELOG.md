@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-28 — Borges
+
+Named milestone (codename **Borges**) rolling up 0.7.0 through 0.8.7: multiple Ghost blogs with one-to-many publishing, per-blog identity/status/keys, and the project rename to Omnighost. See RELEASES.md for the highlights. No code change since 0.8.7.
+
+
 ## [0.8.7] - 2026-06-28
 
 ### Changed
