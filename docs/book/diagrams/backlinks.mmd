@@ -1,0 +1,9 @@
+flowchart LR
+  morning["Morning pages"]
+  weekend["Weekend plans"]
+  garden["Garden"]
+  panel["Backlinks panel shows:<br/>Morning pages, Weekend plans"]
+
+  morning -->|"mentions"| garden
+  weekend -->|"mentions"| garden
+  garden -.-> panel

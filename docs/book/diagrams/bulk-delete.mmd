@@ -1,0 +1,16 @@
+flowchart TD
+  command["Run bulk delete"]
+  choose["Choose blog(s)"]
+  checklist["Review linked posts checklist"]
+  confirm["Final confirmation"]
+  remote["Delete selected Ghost posts"]
+  local{"Archive local notes?"}
+  archive["Move to Archive/<br/>mark no_sync"]
+  trash["Move to Obsidian trash"]
+  keep["Unchecked items stay untouched"]
+
+  command --> choose --> checklist
+  checklist -->|"unchecked"| keep
+  checklist -->|"checked"| confirm --> remote --> local
+  local -->|"yes"| archive
+  local -->|"no"| trash

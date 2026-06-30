@@ -1,0 +1,19 @@
+flowchart TD
+  vault["My Vault (a folder)"]
+  ideas["ideas.md"]
+  books["books-to-read.md"]
+  daily["2026-06-28.md"]
+  projects["Projects/"]
+  garden["garden.md"]
+  book["obsidian-book.md"]
+  images["images/"]
+  sketch["sketch.png"]
+
+  vault --> ideas
+  vault --> books
+  vault --> daily
+  vault --> projects
+  vault --> images
+  projects --> garden
+  projects --> book
+  images --> sketch

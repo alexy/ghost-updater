@@ -1,0 +1,13 @@
+flowchart LR
+  note["One Obsidian note<br/>ghost_blog: [site-a, site-b]"]
+  router["Omnighost<br/>blog router"]
+  blogA["Blog A<br/>folder + key + interval"]
+  blogB["Blog B<br/>folder + key + interval"]
+  ghostA["Ghost Admin API<br/>site A"]
+  ghostB["Ghost Admin API<br/>site B"]
+
+  note --> router
+  router --> blogA --> ghostA
+  router --> blogB --> ghostB
+  ghostA -. "ghost_id_site_a<br/>ghost_public_url_site_a" .-> note
+  ghostB -. "ghost_id_site_b<br/>ghost_public_url_site_b" .-> note

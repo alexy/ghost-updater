@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-30 — Márquez
+
+### Added
+- **Bulk delete checklist.** Choose one or more blogs, review linked notes/posts in a checklist, uncheck anything to keep, then confirm deletion of the selected Ghost posts and local notes.
+- **Folder-delete prompt.** When enabled, deleting a folder of synced notes opens the same checklist for the linked Ghost posts. Remote deletion still requires confirmation.
+- **Archive deleted notes.** Bulk-deleted local notes can be moved into an archive subfolder in their blog folder and marked `no_sync` instead of going directly to Obsidian trash.
+- **Orphaned post handling.** If a blog is removed from a note's blog list, interactive sync asks whether to delete the no-longer-targeted Ghost post, keep it by re-adding the blog, or decide later.
+- **Domain-key normalization.** A command rewrites blog references and per-blog id/public URL keys to stable domain-based keys, preserving existing values.
+
+### Changed
+- README/book documentation now covers multiple blogs, selective sync, bulk import, bulk delete, per-blog identity keys, archive behavior, and current settings.
+
 ## [0.9.1] - 2026-06-28
 
 ### Changed

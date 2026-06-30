@@ -1,0 +1,11 @@
+{
+  "executablePath": "/data/data/com.termux/files/usr/bin/headless_shell",
+  "args": [
+    "--no-sandbox",
+    "--single-process",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-software-rasterizer"
+  ],
+  "protocolTimeout": 300000
+}

@@ -1,0 +1,13 @@
+flowchart LR
+  note["Note in Obsidian<br/>(body + ghost_ properties)"]
+  images["Local images"]
+  plugin["Omnighost"]
+  api["Ghost Admin API"]
+  post["Post on your site"]
+
+  note --> plugin
+  images --> plugin
+  plugin -->|"create or update"| api
+  plugin -->|"upload"| api
+  api --> post
+  plugin -. "writes back<br/>post id, editor URL, public URL" .-> note

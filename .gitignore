@@ -6,6 +6,8 @@ main.js
 *.js.map
 release/
 dist-ios/
+docs/book/dist/* (*).epub
+docs/book/dist/* (*).pdf
 
 # obsidian
 data.json
@@ -20,4 +22,3 @@ npm-debug.log*
 dev.config.json
 .claude/skills/eis-product-management/
 !/main.js
-
